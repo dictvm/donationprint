@@ -5,7 +5,7 @@ import syslog
 import usb.core
 import usb.util
 import daemon
-import stdnum
+import csv
 
 with daemon.DaemonContext():
 
@@ -13,14 +13,12 @@ with daemon.DaemonContext():
 	PRODUCT_ID = 0x0002
 	DATA_SIZE = 337
 
-
 	syslog.syslog("Starting application.")
 
 	device = usb.core.find(idVendor=VENDOR_ID, idProduct=PRODUCT_ID)
 	if device is None:
 		syslog.syslog(syslog.LOG_ERR, "Could not find MagTek USB HID Swipe Reader.")
 		sys.exit("Could not find MagTek USB HID Swipe Reader.")
-
 
 	if device.is_kernel_driver_active(0):
 		try:
@@ -60,7 +58,8 @@ with daemon.DaemonContext():
 				bank = newdata[232:240]
 				if account.isdigit() and bank.isdigit():
 					syslog.syslog("Got working card. Printing form.")
-					printform(calc_iban,grepped_bic)
+
+					printform(calc_iban,calc_bic)
 					printthanks()
 				else:
 					syslog.syslog(syslog.LOG_ERR, "Unreadable card. Printing blank bon.")
@@ -82,15 +81,8 @@ with daemon.DaemonContext():
 					swiped = False
 					continue
 
-// portions taken from GPLed code by Tom: http://toms-cafe.de/iban/iban.py
-
+# portions taken from GPLed code by Tom: http://toms-cafe.de/iban/iban.py
 def create_iban(code, bank, account, alternative = 0):
-    """Check the input, calculate the checksum and assemble the IBAN.
-
-    Return the calculated IBAN.
-    Return the alternative IBAN if alternative is true.
-    Raise an IBANError exception if the input is not correct.
-    """
     err = None
     country = country_data(code)
     if not country:
@@ -110,3 +102,10 @@ def create_iban(code, bank, account, alternative = 0):
     if err:
         raise IBANError(err)
     return calc_iban(country, bank, account, alternative)
+
+def create_bic(bank):
+    err = None
+    for line in open("bankid2bic.csv"):
+        if bank in line:
+        print line.split(",")[1]
+    return calc_bic(bank)
