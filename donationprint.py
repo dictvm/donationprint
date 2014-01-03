@@ -1,10 +1,11 @@
 #!/usr/bin/python
 import os
 import sys
-import syslog 
+import syslog
 import usb.core
 import usb.util
 import daemon
+import stdnum
 
 with daemon.DaemonContext():
 
@@ -34,11 +35,11 @@ with daemon.DaemonContext():
 	except usb.core.USBError as e:
 		syslog.syslog(syslog.LOG_ERR, "Could not set configuration: %s" % str(e))
 		sys.exit("Could not set configuration: %s" % str(e))
-		
 	endpoint = device[0][(0,0)][0]
 
 	data = []
 	swiped = False
+    code = "DE"
 	syslog.syslog("Ready. Awaiting card!")
 
 	def printform(account,bank):
@@ -59,7 +60,7 @@ with daemon.DaemonContext():
 				bank = newdata[232:240]
 				if account.isdigit() and bank.isdigit():
 					syslog.syslog("Got working card. Printing form.")
-					printform(account,bank)
+					printform(calc_iban,grepped_bic)
 					printthanks()
 				else:
 					syslog.syslog(syslog.LOG_ERR, "Unreadable card. Printing blank bon.")
@@ -80,4 +81,32 @@ with daemon.DaemonContext():
 					data = []
 					swiped = False
 					continue
-		
+
+// portions taken from GPLed code by Tom: http://toms-cafe.de/iban/iban.py
+
+def create_iban(code, bank, account, alternative = 0):
+    """Check the input, calculate the checksum and assemble the IBAN.
+
+    Return the calculated IBAN.
+    Return the alternative IBAN if alternative is true.
+    Raise an IBANError exception if the input is not correct.
+    """
+    err = None
+    country = country_data(code)
+    if not country:
+        err = "Unknown Country Code: %s" % code
+    elif len(bank) != country.bank_lng():
+        err = "Bank/Branch Code length %s is not correct for %s (%s)" % \
+              (len(bank), country.name, country.bank_lng())
+    elif invalid_bank(country, bank):
+        err = "Bank/Branch Code %s is not correct for %s" % \
+              (bank, country.name)
+    elif len(account) > country.acc_lng():
+        err = "Account Number length %s is not correct for %s (%s)" % \
+              (len(account), country.name, country.acc_lng())
+    elif invalid_account(country, account):
+        err = "Account Number %s is not correct for %s" % \
+              (account, country.name)
+    if err:
+        raise IBANError(err)
+    return calc_iban(country, bank, account, alternative)
